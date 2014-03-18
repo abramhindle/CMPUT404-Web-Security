@@ -25,6 +25,13 @@ import json
 import difflib
 import os
 import os.path
+from Crypto.Cipher import AES
+from Crypto import Random
+import urllib
+import urlparse
+import binascii
+import hashlib
+
 app = Flask(__name__)
 app.debug = True
 
@@ -101,6 +108,109 @@ def malicious_ad():
     else:
         return flask.render_template('worms.html')
 
+
+key = b'ABCDEFGHIJKLKMNO'
+def encrypt(msg):
+    global key
+    iv = Random.new().read(AES.block_size)
+    cipher = AES.new(key, AES.MODE_CFB, iv)
+    msg = iv + cipher.encrypt(bytes(msg))
+    return msg
+
+def decrypt(msg):
+    global key
+    iv = msg[0:16]
+    cipher = AES.new(key, AES.MODE_CFB, iv)
+    return cipher.decrypt(msg[16:])
+
+
+@app.route("/auth")
+def auth():
+    defv = {"user":"username","admin":"0"}
+    v =  None
+    decrypted = ""
+    if request.args.get('token'): 
+        decrypted = decrypt(binascii.unhexlify(request.args.get('token')))
+        v = urlparse.parse_qs( decrypted )
+        for key in v:
+            v[key] = v[key][0]
+    else:
+        v = defv
+    print "Decrypted: [%s]" % decrypted
+    print v
+
+    v["user"] = v.get("user",defv["user"])
+    if request.args.get('user'):
+        v["user"] = request.args.get('user')
+    v["admin"] = v.get("admin",0)
+    tosend = urllib.urlencode([("user",v["user"]),("admin",v["admin"])])
+    token = encrypt( tosend )
+    hextoken = binascii.hexlify(token)
+    safe_decrypted = str(decrypted).encode('string_escape')
+    print "sd: %s " % safe_decrypted
+    safe_admin = str(v["admin"]).encode('string_escape')
+    safe_tosend = tosend.encode('string_escape')
+    safe_user = str(v["user"]).encode('string_escape')
+    return flask.render_template('auth.html', 
+                                 admin=safe_admin,
+                                 adminzero= v["admin"] == '0',
+                                 adminone = v["admin"] == '1',
+                                 decrypted = safe_decrypted,
+                                 tosend = safe_tosend,
+                                 hextoken = hextoken,
+                                 user=safe_user)
+
+# this is a safer example where we cannot modify it without breaking the hash
+@app.route("/safe_auth")
+def safe_auth():
+    secret = "I really enjoy your company"
+    defv = {"user":"username","admin":"0"}
+    v =  None
+    decrypted = ""
+    def hashit(v,salt = None):
+        if salt is None:
+            iv =  Random.new().read(4)
+            salt = binascii.hexlify(iv)
+        return (hashlib.sha224(salt + secret + v["user"] + v["admin"]).hexdigest(), salt)
+        
+    if request.args.get('token'): 
+        decrypted = decrypt(binascii.unhexlify(request.args.get('token')))
+        v = urlparse.parse_qs( decrypted )
+        for key in v:
+            v[key] = v[key][0]
+        # verify the token
+        (h,salt) = hashit(v,v.get("salt",None))
+        if not (h == v["h"]):
+            print "Invalid hash! expected %s but got %s " % (h,v["h"])
+            flask.abort(403)
+    else:
+        v = defv
+    print "Decrypted: [%s]" % decrypted
+    print v
+
+    v["user"] = v.get("user",defv["user"])
+    if request.args.get('user'):
+        v["user"] = request.args.get('user')
+    v["admin"] = v.get("admin",0)
+    (h,salt) = hashit(v)
+    tosend = urllib.urlencode([("h",h),("salt",salt),("user",v["user"]),("admin",v["admin"])])
+    token = encrypt( tosend )
+    hextoken = binascii.hexlify(token)
+    safe_decrypted = str(decrypted).encode('string_escape')
+    print "sd: %s " % safe_decrypted
+    safe_admin = str(v["admin"]).encode('string_escape')
+    safe_tosend = tosend.encode('string_escape')
+    safe_user = str(v["user"]).encode('string_escape')
+    return flask.render_template('auth.html', 
+                                 admin=safe_admin,
+                                 adminzero= v["admin"] == '0',
+                                 adminone = v["admin"] == '1',
+                                 decrypted = safe_decrypted,
+                                 tosend = safe_tosend,
+                                 hextoken = hextoken,
+                                 user=safe_user)
+
+    
 
 
 if __name__ == "__main__":
