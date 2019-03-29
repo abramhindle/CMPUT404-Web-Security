@@ -136,8 +136,8 @@ def auth():
             v[key] = v[key][0]
     else:
         v = defv
-    print "Decrypted: [%s]" % decrypted
-    print v
+    print("Decrypted: [%s]" % decrypted)
+    print(v)
 
     v["user"] = v.get("user",defv["user"])
     if request.args.get('user'):
@@ -147,7 +147,7 @@ def auth():
     token = encrypt( tosend )
     hextoken = binascii.hexlify(token)
     safe_decrypted = str(decrypted).encode('string_escape')
-    print "sd: %s " % safe_decrypted
+    print("sd: %s " % safe_decrypted)
     safe_admin = str(v["admin"]).encode('string_escape')
     safe_tosend = tosend.encode('string_escape')
     safe_user = str(v["user"]).encode('string_escape')
@@ -181,12 +181,12 @@ def safe_auth():
         # verify the token
         (h,salt) = hashit(v,v.get("salt",None))
         if not (h == v["h"]):
-            print "Invalid hash! expected %s but got %s " % (h,v["h"])
+            print("Invalid hash! expected %s but got %s " % (h,v["h"]))
             flask.abort(403)
     else:
         v = defv
-    print "Decrypted: [%s]" % decrypted
-    print v
+    print("Decrypted: [%s]" % decrypted)
+    print(v)
 
     v["user"] = v.get("user",defv["user"])
     if request.args.get('user'):
@@ -197,7 +197,7 @@ def safe_auth():
     token = encrypt( tosend )
     hextoken = binascii.hexlify(token)
     safe_decrypted = str(decrypted).encode('string_escape')
-    print "sd: %s " % safe_decrypted
+    print("sd: %s " % safe_decrypted)
     safe_admin = str(v["admin"]).encode('string_escape')
     safe_tosend = tosend.encode('string_escape')
     safe_user = str(v["user"]).encode('string_escape')
